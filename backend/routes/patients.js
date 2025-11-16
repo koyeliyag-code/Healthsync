@@ -120,4 +120,73 @@ router.delete('/:id', async (req, res) => {
   }
 })
 
+// add diagnosis to a patient (only creator)
+router.post('/:id/diagnoses', async (req, res) => {
+  try {
+    const token = getTokenFromReq(req)
+    if (!token) return res.status(401).json({ error: 'missing token' })
+    let data
+    try { data = jwt.verify(token, JWT_SECRET) } catch (err) { return res.status(401).json({ error: 'invalid token' }) }
+
+    const id = req.params.id
+    const body = req.body || {}
+    const { icd11, disease, notes } = body
+    // Require a text diagnosis (notes) for each diagnosis
+    if (!notes || String(notes).trim() === '') return res.status(400).json({ error: 'notes (text diagnosis) required' })
+
+    const db = await getDb()
+    if (!db) return res.status(503).json({ error: 'database unavailable' })
+    const patients = db.collection('patients')
+    const existing = await patients.findOne({ _id: new ObjectId(id) })
+    if (!existing) return res.status(404).json({ error: 'not found' })
+    const owner = existing.createdBy || null
+    const requester = data.id || data.email || null
+    if (owner && requester && owner !== requester) return res.status(403).json({ error: 'forbidden' })
+
+    const diag = { id: String(new ObjectId()), icd11: icd11 || null, disease: disease ? String(disease) : null, notes: notes ? String(notes) : null, createdAt: new Date(), createdBy: requester }
+    await patients.updateOne({ _id: new ObjectId(id) }, { $push: { diagnoses: diag }, $set: { updatedAt: new Date() } })
+    return res.status(201).json({ diagnosis: diag })
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error('add diagnosis error', err)
+    return res.status(500).json({ error: 'failed to add diagnosis' })
+  }
+})
+
 module.exports = router
+
+// GET /api/patients/diagnoses - return diagnoses for patients owned by the requester
+router.get('/diagnoses', async (req, res) => {
+  try {
+    const token = getTokenFromReq(req)
+    if (!token) return res.status(401).json({ error: 'missing token' })
+    let data
+    try { data = jwt.verify(token, JWT_SECRET) } catch (err) { return res.status(401).json({ error: 'invalid token' }) }
+
+    const requester = data.id || data.email || null
+    if (!requester) return res.status(401).json({ error: 'invalid requester' })
+
+    const db = await getDb()
+    if (!db) return res.status(503).json({ diagnoses: [] })
+
+    // find patients owned by requester and collect their diagnoses
+    const cursor = db.collection('patients').find({ createdBy: requester }, { projection: { name: 1, diagnoses: 1 } })
+    const results = await cursor.toArray()
+    const list = []
+    for (const p of results) {
+      const pid = String(p._id)
+      const pname = p.name || ''
+      const diags = Array.isArray(p.diagnoses) ? p.diagnoses : []
+      for (const d of diags) {
+        list.push({ patientId: pid, patientName: pname, id: d.id || String(d._id || ''), icd11: d.icd11 || null, disease: d.disease || null, notes: d.notes || null, createdAt: d.createdAt || null, createdBy: d.createdBy || null })
+      }
+    }
+    // sort most recent first
+    list.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
+    return res.json({ diagnoses: list })
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error('fetch diagnoses error', err)
+    return res.status(500).json({ error: 'failed to fetch diagnoses' })
+  }
+})

@@ -40,6 +40,7 @@ export default function AuthGuard({ children }: PropsWithChildren) {
           localStorage.removeItem('hs_token')
           sessionStorage.removeItem('hs_token')
         } catch {
+          console.error('failed to clear invalid token')
         }
         navigate('/login', { replace: true })
       }

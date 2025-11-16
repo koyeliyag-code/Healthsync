@@ -20,6 +20,37 @@ type Patient = {
 type AuthUser = { id?: string; email?: string } | null
 
 export default function RecentPatients() {
+  function formatDateWithRelative(dateStr?: string | null) {
+    if (!dateStr) return '—'
+    const d = new Date(dateStr)
+    if (isNaN(d.getTime())) return '—'
+
+    // date label DD-MM-YYYY
+    const dd = String(d.getDate()).padStart(2, '0')
+    const mm = String(d.getMonth() + 1).padStart(2, '0')
+    const yyyy = d.getFullYear()
+    const dateLabel = `${dd}-${mm}-${yyyy}`
+
+    const msPerDay = 24 * 60 * 60 * 1000
+    const today = new Date()
+    const todayMid = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+    const dateMid = new Date(d.getFullYear(), d.getMonth(), d.getDate())
+    const diffDays = Math.floor((todayMid.getTime() - dateMid.getTime()) / msPerDay)
+
+    let relative = ''
+    if (diffDays <= 0) relative = 'Today'
+    else if (diffDays === 1) relative = 'Yesterday'
+    else if (diffDays >= 2 && diffDays <= 6) relative = `${diffDays} Days`
+    else if (diffDays >= 7 && diffDays < 30) {
+      const weeks = Math.floor(diffDays / 7)
+      relative = `${weeks} Week${weeks > 1 ? 's' : ''}`
+    } else {
+      const months = Math.floor(diffDays / 30)
+      relative = `${months} Month${months > 1 ? 's' : ''}`
+    }
+
+    return `${dateLabel} (${relative})`
+  }
   const { user, authFetch } = useAuth()
   const [patients, setPatients] = useState<Patient[]>([])
   const [loading, setLoading] = useState(false)
@@ -123,7 +154,7 @@ export default function RecentPatients() {
               <div className="flex items-center gap-4">
                 <div className="text-right">
                   <p className="text-xs text-muted-foreground">Age: {patient.age ?? "—"}</p>
-                  <p className="text-xs text-muted-foreground">{patient.createdAt ? new Date(patient.createdAt).toLocaleString() : "—"}</p>
+                  <p className="text-xs text-muted-foreground">{formatDateWithRelative(patient.createdAt)}</p>
                 </div>
                 <Button variant="ghost" size="sm" onClick={() => setEditing(patient)}>
                   <MoreVertical className="w-4 h-4" />
