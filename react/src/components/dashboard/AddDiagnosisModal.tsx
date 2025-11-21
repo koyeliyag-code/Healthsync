@@ -7,10 +7,11 @@ import { useAuth } from "@/lib/auth"
 
 type Patient = { id: string; name?: string; createdBy?: string }
 
-export default function AddDiagnosisModal({ open, onClose, onAdded }: { open: boolean; onClose: () => void; onAdded?: () => void }) {
+export default function AddDiagnosisModal({ open, onClose, onAdded, onRequestNewPatient }: { open: boolean; onClose: () => void; onAdded?: () => void; onRequestNewPatient?: () => void }) {
   const { authFetch, user } = useAuth()
   const [patients, setPatients] = useState<Patient[]>([])
   const [selected, setSelected] = useState<string | null>(null)
+  
   const [query, setQuery] = useState("")
   const [icd11, setIcd11] = useState<string | null>(null)
   const [disease, setDisease] = useState<string | null>(null)
@@ -167,14 +168,25 @@ export default function AddDiagnosisModal({ open, onClose, onAdded }: { open: bo
         <form onSubmit={handleAdd} className="space-y-3">
           <div>
             <label className="block text-sm text-muted-foreground mb-1">Patient</label>
-            <select value={selected ?? ''} onChange={e => setSelected(e.target.value || null)} className="w-full border border-border rounded-md p-2 bg-background">
+            <select value={selected ?? ''} onChange={e => {
+              const value = e.target.value
+              if (value === '__new__') {
+                resetForm()
+                onRequestNewPatient?.()
+                return
+              }
+              setSelected(value || null)
+            }} className="w-full border border-border rounded-md p-2 bg-background">
               <option value="">Select patient…</option>
               {patients.map(p => (
                 <option key={p.id} value={p.id}>{p.name || p.id}</option>
               ))}
+              <option value="__new__">Add new patient</option>
             </select>
             {loadingPatients && <div className="text-xs text-muted-foreground mt-1">Loading patients…</div>}
           </div>
+
+          
 
           <div>
             <label className="block text-sm text-muted-foreground mb-1">Disease (search)</label>
@@ -199,14 +211,14 @@ export default function AddDiagnosisModal({ open, onClose, onAdded }: { open: bo
           </div>
 
           <div>
-            <label className="block text-sm text-muted-foreground mb-1">Notes <span className="text-xs text-destructive">(required)</span></label>
+            <label className="block text-sm text-muted-foreground mb-1">Notes</label>
             <textarea value={notes} onChange={e => { setNotes(e.target.value); if (error) setError(null) }} className="w-full border border-border rounded-md p-2 bg-background" rows={4} placeholder="Add clinical notes or observations" />
             {error && <div className="mt-1 text-sm text-destructive">{error}</div>}
           </div>
 
           <div className="flex items-center justify-end gap-2">
             <Button variant="outline" type="button" onClick={() => { resetForm(); onClose() }}>Cancel</Button>
-            <Button type="submit" disabled={saving}>{saving ? 'Adding…' : 'Add Diagnosis'}</Button>
+            <Button type="submit" disabled={saving || !selected}>{saving ? 'Adding…' : 'Add Diagnosis'}</Button>
           </div>
         </form>
       </div>

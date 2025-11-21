@@ -8,9 +8,10 @@ import { useAuth } from "@/lib/auth"
 type Props = {
   open: boolean
   onClose: () => void
+  onCreated?: (patientId: string) => void
 }
 
-export default function NewPatientModal({ open, onClose }: Props) {
+export default function NewPatientModal({ open, onClose, onCreated }: Props) {
   const { authFetch } = useAuth()
   const [name, setName] = useState("")
   const [age, setAge] = useState<number | "">("")
@@ -135,7 +136,9 @@ export default function NewPatientModal({ open, onClose }: Props) {
       if (authFetch) {
         const res = await authFetch('/api/patients', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
         if (!res.ok) throw new Error('failed')
-        // optionally handle response
+        const data = await res.json().catch(() => null)
+        const newId = data?.id || data?._id || null
+        if (newId && typeof onCreated === 'function') onCreated(String(newId))
       } else {
         console.log('patient payload (no authFetch):', payload)
       }

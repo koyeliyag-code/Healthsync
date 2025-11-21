@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react"
 import { Button } from "../ui/button"
 import { useAuth } from "@/lib/auth"
+// inline org new-patient modal used instead of importing the full NewPatientModal
 
 type Profile = { name?: string }
 
@@ -10,6 +11,7 @@ type Patient = {
   id: string
   name?: string
   age?: number
+  createdAt?: string | null
 }
 
 type Diagnosis = {
@@ -32,9 +34,65 @@ type Doctor = {
 
 export default function OrgDoctorsPanel({ orgId }: { orgId: string | null }) {
   const { authFetch } = useAuth()
+  // Helper: create a nicely styled drag preview element and attach to document body
+  function createDragPreview(name?: string, meta?: string) {
+    const box = document.createElement('div')
+    box.style.position = 'absolute'
+    box.style.top = '-9999px'
+    box.style.left = '-9999px'
+    box.style.zIndex = '999999'
+    box.style.padding = '8px 12px'
+    box.style.borderRadius = '8px'
+    box.style.boxShadow = '0 6px 18px rgba(0,0,0,0.18)'
+    box.style.background = 'linear-gradient(180deg, #ffffff, #fbfbfb)'
+    box.style.color = '#111827'
+    box.style.fontFamily = 'Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial'
+    box.style.border = '1px solid rgba(15,23,42,0.06)'
+    box.style.display = 'flex'
+    box.style.alignItems = 'center'
+    box.style.gap = '10px'
+
+    const avatar = document.createElement('div')
+    avatar.style.width = '40px'
+    avatar.style.height = '40px'
+    avatar.style.borderRadius = '8px'
+    avatar.style.background = 'linear-gradient(135deg,#eef2ff,#e6f0ff)'
+    avatar.style.display = 'flex'
+    avatar.style.alignItems = 'center'
+    avatar.style.justifyContent = 'center'
+    avatar.style.fontWeight = '600'
+    avatar.style.color = '#4338ca'
+    avatar.textContent = (name || '').slice(0,2).toUpperCase()
+
+    const text = document.createElement('div')
+    text.style.display = 'flex'
+    text.style.flexDirection = 'column'
+    text.style.minWidth = '120px'
+    const title = document.createElement('div')
+    title.style.fontSize = '13px'
+    title.style.fontWeight = '600'
+    title.textContent = name || 'Patient'
+    const sub = document.createElement('div')
+    sub.style.fontSize = '12px'
+    sub.style.color = '#6b7280'
+    sub.textContent = meta || ''
+
+    text.appendChild(title)
+    text.appendChild(sub)
+    box.appendChild(avatar)
+    box.appendChild(text)
+    document.body.appendChild(box)
+    return box
+  }
   const [doctors, setDoctors] = useState<Doctor[]>([])
   const [loading, setLoading] = useState(false)
   const [expanded, setExpanded] = useState<string | null>(null)
+  const [newPatientOpen, setNewPatientOpen] = useState(false)
+  const [newName, setNewName] = useState("")
+  const [newAge, setNewAge] = useState<number | ''>("")
+  const [creating, setCreating] = useState(false)
+  const [dropTarget, setDropTarget] = useState<string | null>(null)
+  const [panelError, setPanelError] = useState<string | null>(null)
 
   const [query, setQuery] = useState("")
 
@@ -124,6 +182,23 @@ export default function OrgDoctorsPanel({ orgId }: { orgId: string | null }) {
     return () => { cancelled = true }
   }, [orgId, authFetch])
 
+
+  // helper: re-fetch doctors
+  async function refreshDoctors() {
+    if (!orgId) return
+    setLoading(true)
+    try {
+      const res = await authFetch(`/api/organizations/${orgId}/doctors`)
+      if (!res.ok) throw new Error('failed to load doctors')
+      const data = await res.json()
+      setDoctors(data.doctors || [])
+    } catch (err) {
+      console.error('refresh doctors error', err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
   if (!orgId) return <div className="text-sm text-muted-foreground">No organization selected.</div>
 
   return (
@@ -132,6 +207,9 @@ export default function OrgDoctorsPanel({ orgId }: { orgId: string | null }) {
         <div>
           <h3 className="text-lg font-semibold text-foreground">Doctors</h3>
           <p className="text-sm text-muted-foreground">View doctors and quick stats for your organization</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button size="sm" onClick={() => { setNewName(''); setNewAge(''); setNewPatientOpen(true) }}>New Patient</Button>
         </div>
         <div className="w-full sm:w-80">
           <input
@@ -142,6 +220,53 @@ export default function OrgDoctorsPanel({ orgId }: { orgId: string | null }) {
           />
         </div>
       </div>
+
+      {panelError && <div className="text-sm text-destructive mt-2">{panelError}</div>}
+
+
+      {/* Inline New Patient modal for org admins (name + age only) */}
+      {newPatientOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setNewPatientOpen(false)} />
+          <div className="relative w-full max-w-md mx-4 bg-card border-border rounded-lg shadow-lg p-6">
+            <h3 className="text-lg font-semibold mb-4">New Patient</h3>
+            <form onSubmit={async (e) => {
+              e.preventDefault()
+              setCreating(true)
+              try {
+                if (!newName || String(newName).trim().length === 0) throw new Error('Name required')
+                if (!newAge || Number.isNaN(Number(newAge))) throw new Error('Valid age required')
+                const payload = { name: String(newName).trim(), age: Number(newAge) }
+                const res = await authFetch(`/api/organizations/${orgId}/patients`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+                if (!res.ok) {
+                  const txt = await res.text().catch(() => '')
+                  throw new Error(txt || 'failed')
+                }
+                // refresh lists
+                await refreshDoctors()
+                setNewPatientOpen(false)
+              } catch (err) {
+                console.error('create org patient failed', err)
+                // show lightweight alert for now
+                alert(err instanceof Error ? err.message : String(err))
+              } finally { setCreating(false) }
+            }} className="space-y-3">
+              <div>
+                <label className="block text-sm text-muted-foreground mb-1">Name</label>
+                <input value={newName} onChange={(e) => setNewName(e.target.value)} className="w-full px-3 py-2 rounded-md border border-border bg-input" />
+              </div>
+              <div>
+                <label className="block text-sm text-muted-foreground mb-1">Age</label>
+                <input value={String(newAge)} onChange={(e) => setNewAge(e.target.value ? Number(e.target.value) : '')} type="number" className="w-full px-3 py-2 rounded-md border border-border bg-input" />
+              </div>
+              <div className="flex items-center justify-end gap-2">
+                <button type="button" className="px-3 py-2 border border-border rounded-md" onClick={() => setNewPatientOpen(false)}>Cancel</button>
+                <button className="px-3 py-2 rounded-md bg-primary text-primary-foreground" type="submit" disabled={creating}>{creating ? 'Creating…' : 'Create'}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {loading && <div className="text-sm text-muted-foreground">Loading doctors…</div>}
       {!loading && doctors.length === 0 && <div className="text-sm text-muted-foreground">No doctors found.</div>}
@@ -159,7 +284,77 @@ export default function OrgDoctorsPanel({ orgId }: { orgId: string | null }) {
           }, null)
 
           return (
-            <div key={d.id} className="border border-border rounded-lg p-4 bg-background flex flex-col sm:flex-row gap-3">
+            <div key={d.id}
+              className={"relative border border-border rounded-lg p-4 bg-background flex flex-col sm:flex-row gap-3 overflow-hidden " + (dropTarget === d.id ? 'ring-2 ring-primary/60' : '')}
+              onDragOver={(e) => { e.preventDefault(); setDropTarget(d.id) }}
+              onDragEnter={(e) => { e.preventDefault(); setDropTarget(d.id) }}
+              onDragLeave={() => { setDropTarget(null) }}
+              onDrop={async (e) => {
+                e.preventDefault()
+                setDropTarget(null)
+                setPanelError(null)
+                try {
+                  const data = e.dataTransfer.getData('text/plain')
+                  if (!data) return
+                  const parsed = JSON.parse(data)
+                  const patientId = parsed.patientId
+                  const fromDoctorId = parsed.fromDoctorId || null
+                  if (!patientId) return
+                  // continue
+
+                  // Optimistic local update: remove from source and add to target
+                  setDoctors((prev) => {
+                    const next = prev.map((doc) => {
+                      // remove patient from source
+                      if (fromDoctorId && doc.id === fromDoctorId) {
+                        return { ...doc, patients: (doc.patients || []).filter(p => p.id !== patientId) }
+                      }
+                      // add to destination
+                      if (doc.id === d.id) {
+                        // avoid duplicate
+                        const existing = (doc.patients || []).some(p => p.id === patientId)
+                        if (existing) return doc
+                        const newPatient: Patient = { id: patientId }
+                        return { ...doc, patients: [newPatient, ...(doc.patients || [])] }
+                      }
+                      return doc
+                    })
+                    return next
+                  })
+
+
+                  // Notify other parts of the UI (table/carousel) about optimistic assignment
+                  try {
+                    window.dispatchEvent(new CustomEvent('orgPatientAssigned', { detail: { patientId, doctorId: d.id } }))
+                  } catch (e) {
+                    console.debug('dispatch orgPatientAssigned failed', e)
+                  }
+
+                  // call assign endpoint
+                  const res = await authFetch(`/api/organizations/${orgId}/patients/${patientId}/assign`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ doctorId: d.id }) })
+                  if (!res.ok) {
+                    const txt = await res.text().catch(() => '')
+                    // revert by refreshing full data
+                    await refreshDoctors()
+                    setPanelError(txt || 'Failed to assign patient')
+                  } else {
+                    // success — refresh to reconcile metadata
+                    await refreshDoctors()
+                  }
+                } catch (err) {
+                  console.error('drop assign error', err)
+                  setPanelError('Transfer failed')
+                  await refreshDoctors()
+                }
+              }}
+            >
+              {dropTarget === d.id && (
+                <div className="absolute inset-0 z-20 flex items-center justify-center rounded-lg bg-black/40 pointer-events-none">
+                  <div className="text-center px-4">
+                    <div className="text-white font-semibold text-lg">Assign to doctor</div>
+                  </div>
+                </div>
+              )}
               <div className="shrink-0">
                 <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-primary/20 flex items-center justify-center text-primary font-semibold text-sm">
                   {computeInitials(d.profile?.name as string | undefined, d.email)}
@@ -206,7 +401,39 @@ export default function OrgDoctorsPanel({ orgId }: { orgId: string | null }) {
                       {d.patients && d.patients.length > 0 ? (
                         <ul className="mt-2 list-disc list-inside text-sm max-h-40 overflow-auto">
                           {d.patients.slice(0, 8).map((p: Patient) => (
-                            <li key={p.id}>{p.name || p.id} — Age: {p.age ?? '—'}</li>
+                            <li key={p.id}
+                              draggable
+                              onDragStart={(e) => {
+                                // create and attach a visual drag preview
+                                try {
+                                  const preview = createDragPreview(p.name || p.id, p.age ? `Age: ${p.age}` : '')
+                                  const el = (e.currentTarget as HTMLElement & { __dragPreview?: HTMLElement })
+                                  el.__dragPreview = preview
+                                  try { e.dataTransfer.setDragImage(preview, Math.floor(preview.offsetWidth / 2), Math.floor(preview.offsetHeight / 2)) } catch (err) { console.debug('setDragImage failed', err) }
+                                } catch (err) {
+                                  console.debug('createDragPreview failed', err)
+                                }
+                                e.dataTransfer.setData('text/plain', JSON.stringify({ patientId: p.id, fromDoctorId: d.id, patientName: p.name || '' }));
+                                e.dataTransfer.effectAllowed = 'move'
+                              }}
+                              onDragEnd={(e) => {
+                                try {
+                                  const el = (e.currentTarget as HTMLElement & { __dragPreview?: HTMLElement })
+                                  const prev = el.__dragPreview
+                                  if (prev && prev.parentNode) prev.parentNode.removeChild(prev)
+                                  el.__dragPreview = undefined
+                                } catch (err) { console.debug('clean drag preview failed', err) }
+                              }}
+                              className="cursor-grab"
+                            >
+                              <div className="flex items-center justify-between">
+                                <div className="min-w-0">
+                                  <div className="text-sm font-semibold truncate">{p.name || p.id}</div>
+                                  <div className="text-xs text-muted-foreground">Age: {p.age ?? '—'}</div>
+                                </div>
+                                <div className="text-xs text-muted-foreground">Drag</div>
+                              </div>
+                            </li>
                           ))}
                         </ul>
                       ) : <div className="text-sm text-muted-foreground">No patients</div>}
