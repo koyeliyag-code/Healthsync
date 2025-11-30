@@ -338,17 +338,6 @@ export default function EMRDashboard() {
           <div className="lg:col-span-2 space-y-6">
             <OrgDoctorsPanel orgId={orgId} />
           </div>
-          <div className="space-y-6">
-            <Card className="bg-card border-border p-6">
-              <h3 className="text-lg font-semibold text-foreground mb-4">Organization Actions</h3>
-              <div className="space-y-2">
-                <button className="w-full px-4 py-2 rounded-lg border border-border text-foreground text-sm font-medium hover:bg-card transition-colors" onClick={() => setViewReports(true)}>
-                  View Reports
-                </button>
-                <ReportsModal open={viewReports} onClose={() => setViewReports(false)} />
-              </div>
-            </Card>
-          </div>
         </div>
         {assignOpen && assignPatient && (
           <div className="fixed inset-0 z-50 flex items-center justify-center">
