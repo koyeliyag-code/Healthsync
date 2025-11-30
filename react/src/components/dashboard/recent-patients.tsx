@@ -17,6 +17,8 @@ type Patient = {
   createdBy?: string
 }
 
+type Diagnosis = { id: string; patientId?: string; icd11?: string | null; disease?: string | null; notes?: string | null; createdAt?: string | null }
+
 type AuthUser = { id?: string; email?: string } | null
 
 export default function RecentPatients() {
@@ -53,6 +55,7 @@ export default function RecentPatients() {
   }
   const { user, authFetch } = useAuth()
   const [patients, setPatients] = useState<Patient[]>([])
+  const [latestByPatient, setLatestByPatient] = useState<Record<string, Diagnosis | null>>({})
   const [loading, setLoading] = useState(false)
   const [editing, setEditing] = useState<Patient | null>(null)
   const [deleting, setDeleting] = useState<Patient | null>(null)
@@ -68,7 +71,38 @@ export default function RecentPatients() {
         return
       }
   const data = await res.json()
-  setPatients(data.patients || [])
+  const pts = data.patients || []
+  setPatients(pts)
+
+  // Fetch latest diagnoses for these patients and map them by patientId
+  try {
+    const dr = await authFetch('/api/patients/diagnoses')
+    if (dr.ok) {
+      const dd = await dr.json()
+      console.log(dd);
+      const diagnosesArr: Diagnosis[] = Array.isArray(dd) ? dd : (Array.isArray(dd.diagnoses) ? dd.diagnoses : (Array.isArray(dd.items) ? dd.items : []))
+      const map: Record<string, Diagnosis | null> = {}
+      // initialize with null (use string keys)
+      for (const p of pts) map[String(p.id)] = null
+      for (const d of diagnosesArr) {
+        const pidRaw = d.patientId ?? (d as any).patient_id ?? (d as any).patient ?? ''
+        const pid = String((pidRaw && (typeof pidRaw === 'object' ? (pidRaw.id ?? pidRaw._id ?? '') : pidRaw)) || '')
+        if (!pid) continue
+        const cur = map[pid]
+        const dCreated = d.createdAt ? new Date(d.createdAt) : null
+        const curCreated = cur && cur.createdAt ? new Date(cur.createdAt) : null
+        if (!cur || (dCreated && (!curCreated || dCreated > curCreated))) {
+          map[pid] = d
+        }
+      }
+      setLatestByPatient(map)
+    } else {
+      setLatestByPatient({})
+    }
+  } catch (e) {
+    console.debug('failed loading diagnoses for patients', e)
+    setLatestByPatient({})
+  }
     } catch (err) {
       const e = err as { name?: string }
       if (e?.name === 'AbortError') return
@@ -116,7 +150,7 @@ export default function RecentPatients() {
       </div>
 
       <div className="space-y-4">
-        {loading && <p className="text-sm text-muted-foreground">Loading patients…</p>}
+        {/* {loading && <p className="text-sm text-muted-foreground">Loading patients…</p>} */}
         {!loading && myPatients.length === 0 && (
           <p className="text-sm text-muted-foreground">No patients yet.</p>
         )}
@@ -126,7 +160,12 @@ export default function RecentPatients() {
             <div className="flex items-center justify-between sm:hidden p-3 rounded-lg border border-border hover:bg-secondary/20 transition-colors">
               <div className="min-w-0">
                 <p className="text-sm font-semibold text-foreground truncate">{patient.name || '—'}</p>
-                <p className="text-xs text-muted-foreground truncate">{patient.disease ? patient.disease : (patient.icd11 || '—')}</p>
+                <p className="text-xs text-muted-foreground truncate">{
+                  // Prefer most recent diagnosis for this patient; fall back to patient.disease, then icd11
+                  (latestByPatient[patient.id] && (latestByPatient[patient.id]!.disease || latestByPatient[patient.id]!.icd11))
+                    ? `${latestByPatient[patient.id]!.disease ? latestByPatient[patient.id]!.disease : ''}${latestByPatient[patient.id]!.icd11 ? ` ${latestByPatient[patient.id]!.icd11}` : ''}`.trim()
+                    : (patient.disease ? patient.disease : (patient.icd11 || '—'))
+                }</p>
               </div>
               <div className="flex items-center gap-3 ml-3">
                 <span className="text-xs text-muted-foreground">Age: {patient.age ?? '—'}</span>
@@ -147,7 +186,12 @@ export default function RecentPatients() {
                   </div>
                   <div>
                     <p className="text-sm font-semibold text-foreground">{patient.name}</p>
-                    <p className="text-xs text-muted-foreground">{patient.disease ? `${patient.disease} ${patient.icd11 ? `(${patient.icd11})` : ''}` : (patient.icd11 || "—")}</p>
+                    <p className="text-xs text-muted-foreground">{
+                      // Prefer most recent diagnosis
+                      (latestByPatient[patient.id] && (latestByPatient[patient.id]!.disease || latestByPatient[patient.id]!.icd11))
+                        ? `${latestByPatient[patient.id]!.disease ? latestByPatient[patient.id]!.disease : ''}${latestByPatient[patient.id]!.icd11 ? ` (${latestByPatient[patient.id]!.icd11})` : ''}`.trim()
+                        : (patient.disease ? `${patient.disease}${patient.icd11 ? ` (${patient.icd11})` : ''}` : (patient.icd11 || "—"))
+                    }</p>
                   </div>
                 </div>
               </div>

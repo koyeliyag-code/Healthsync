@@ -19,6 +19,7 @@ export default function EMRDashboard() {
   const [viewReports, setViewReports] = useState(false)
 
   const [orgPatients, setOrgPatients] = useState<Array<{ id: string; name?: string; age?: number; createdAt?: string; createdBy?: string }>>([])
+  const [latestByPatient, setLatestByPatient] = useState<Record<string, { id?: string; patientId?: string; icd11?: string | null; disease?: string | null; createdAt?: string | null } | null>>({})
   const [doctorMap, setDoctorMap] = useState<Record<string, { name?: string; email?: string }>>({})
   const [patientSearch, setPatientSearch] = useState('')
   const [showAllPatients, setShowAllPatients] = useState(false)
@@ -211,6 +212,31 @@ export default function EMRDashboard() {
       setDoctorMap(map)
       setDoctorList(list)
       setOrgPatients(patients)
+      // Load latest diagnoses for organization patients and map by patient id
+        // Build latest diagnosis map from the doctors payload we already received.
+        // The organizations route includes a `diagnoses` array per doctor (diagnoses authored by that doctor across patients).
+        try {
+          const map: Record<string, any> = {}
+          for (const p of patients) map[String(p.id)] = null
+
+          for (const d of docs) {
+            const diagList = Array.isArray(d.diagnoses) ? d.diagnoses : []
+            for (const diag of diagList) {
+              const pid = String(diag.patientId || diag.patient_id || (diag.patient && (diag.patient.id || diag.patient._id)) || '')
+              if (!pid) continue
+              const cur = map[pid]
+              const dCreated = diag.createdAt ? new Date(diag.createdAt) : null
+              const curCreated = cur && cur.createdAt ? new Date(cur.createdAt) : null
+              if (!cur || (dCreated && (!curCreated || dCreated > curCreated))) {
+                map[pid] = diag
+              }
+            }
+          }
+          setLatestByPatient(map)
+        } catch (e) {
+          console.debug('failed to map org diagnoses', e)
+          setLatestByPatient({})
+        }
     } catch (err) {
       console.error('load org patients', err)
     }
@@ -317,7 +343,12 @@ export default function EMRDashboard() {
                         <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center font-semibold text-sm">{(p.name || p.id || '').slice(0,2).toUpperCase()}</div>
                         <div className="min-w-0">
                           <div className="text-sm font-semibold truncate">{p.name || p.id}</div>
-                          <div className="text-xs text-muted-foreground truncate">{p.id}</div>
+                          <div className="text-xs text-muted-foreground truncate">{
+                            // Prefer latest diagnosis -> patient.disease -> placeholder
+                            (latestByPatient[p.id] && (latestByPatient[p.id]?.disease || latestByPatient[p.id]?.icd11))
+                              ? `${latestByPatient[p.id]?.disease ? latestByPatient[p.id]?.disease : ''}${latestByPatient[p.id]?.icd11 ? ` (${latestByPatient[p.id]?.icd11})` : ''}`.trim()
+                              : (p.hasOwnProperty('disease') && (p as any).disease ? (p as any).disease : '—')
+                          }</div>
                         </div>
                       </td>
                       <td className="py-2 px-2">{p.age ?? '—'}</td>
