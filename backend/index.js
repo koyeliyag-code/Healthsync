@@ -84,7 +84,13 @@ io.on('connection', (socket) => {
 app.set('io', io)
 app.set('userSockets', userSockets)
 
-app.use(cors())
+// Configure CORS to allow all origins (for debugging)
+app.use(cors({
+  origin: '*',
+  credentials: false,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}))
 app.use(express.json({ limit: '5mb' }))
 
 app.use('/api/auth', authRouter)

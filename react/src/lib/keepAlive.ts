@@ -8,7 +8,7 @@ const BACKEND_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000'
 const HEALTH_ENDPOINT = '/health'
 
 let lastPingTime = 0
-const MIN_PING_INTERVAL = 10000 // Minimum 5 seconds between pings to avoid overload
+const MIN_PING_INTERVAL = 5 * 60 * 1000 // 5 minutes
 
 /**
  * Ping the backend health endpoint to keep it awake
