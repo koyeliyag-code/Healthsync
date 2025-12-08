@@ -65,7 +65,6 @@ const getNotificationIcon = (type: Notification['type']) => {
     return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
   }
 export default function Sidebar({ open, onToggle, notifications = [], onClearNotifications, onRemoveNotification }: SidebarProps) {
-  const [showUserMenu, setShowUserMenu] = useState(false)
     const [showNotifications, setShowNotifications] = useState(false)
   const location = useLocation()
   const pathname = location.pathname
@@ -163,7 +162,6 @@ export default function Sidebar({ open, onToggle, notifications = [], onClearNot
             <button
               onClick={() => {
                 setShowNotifications(!showNotifications)
-                setShowUserMenu(false)
               }}
               onBlur={() => setTimeout(() => setShowNotifications(false), 200)}
               aria-label="View notifications"
