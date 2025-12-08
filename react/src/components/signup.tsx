@@ -52,6 +52,15 @@ export function Signup() {
   const [confirm, setConfirm] = useState("")
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [passwordChecks, setPasswordChecks] = useState({
+    upper: false,
+    lower: false,
+    digit: false,
+    symbol: false,
+    length: false,
+  })
+  const [passwordValid, setPasswordValid] = useState(false)
+  const [passwordHint, setPasswordHint] = useState("")
   const auth = useAuth()
   const [isDark, setIsDark] = useState<boolean>(false);
 
@@ -81,6 +90,38 @@ export function Signup() {
 
     return () => observer.disconnect();
   }, []);
+
+  // Evaluate password strength client-side
+  useEffect(() => {
+    const hasUpper = /[A-Z]/.test(password)
+    const hasLower = /[a-z]/.test(password)
+    const hasDigit = /\d/.test(password)
+    const hasSymbol = /[^A-Za-z0-9]/.test(password)
+    const meetsLength = password.length >= 8
+
+    setPasswordChecks({
+      upper: hasUpper,
+      lower: hasLower,
+      digit: hasDigit,
+      symbol: hasSymbol,
+      length: meetsLength,
+    })
+
+    const valid = hasUpper && hasLower && hasDigit && hasSymbol && meetsLength
+    setPasswordValid(valid)
+
+    if (!password) {
+      setPasswordHint("")
+      return
+    }
+
+    if (!valid) {
+      setPasswordHint("Password must be at least 8 characters and include uppercase, lowercase, number, and symbol.")
+    } else {
+      setPasswordHint("")
+    }
+  }, [password])
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
@@ -104,6 +145,11 @@ export function Signup() {
         setError("Please complete organization name, admin name, email and password.")
         return
       }
+    }
+
+    if (!passwordValid) {
+      setError("Password must be at least 8 characters and include uppercase, lowercase, number, and symbol.")
+      return
     }
 
     if (password !== confirm) {
@@ -267,6 +313,32 @@ export function Signup() {
                     <Input type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} placeholder="Confirm password" className="h-10 rounded-lg border-border/60 bg-background/50 focus:border-primary/50 focus:ring-2 focus:ring-primary/20 transition-all" required />
                   </div>
                 </div>
+                <div className="text-xs text-foreground/80 bg-muted/30 border border-border/40 px-3 py-2 rounded-md space-y-1">
+                  <div className="font-semibold">Password must include:</div>
+                  {[
+                    { key: "upper", label: "An uppercase letter (A-Z)" },
+                    { key: "lower", label: "A lowercase letter (a-z)" },
+                    { key: "digit", label: "A number (0-9)" },
+                    { key: "symbol", label: "A symbol (e.g. !@#$)" },
+                    { key: "length", label: "At least 8 characters" },
+                  ].map(({ key, label }) => {
+                    const met = passwordChecks[key as keyof typeof passwordChecks]
+                    return (
+                      <div
+                        key={key}
+                        className={`flex items-center gap-2 ${met ? 'text-emerald-600' : 'text-destructive'} ${met ? '' : 'line-through'}`}
+                      >
+                        <span className="h-2 w-2 rounded-full" style={{ backgroundColor: met ? '#10b981' : '#ef4444' }}></span>
+                        <span>{label}</span>
+                      </div>
+                    )
+                  })}
+                </div>
+                {!passwordValid && passwordHint && (
+                  <div className="text-xs text-destructive bg-destructive/10 border border-destructive/30 px-3 py-2 rounded-md">
+                    {passwordHint}
+                  </div>
+                )}
 
                 <div className="space-y-2 pt-2">
                   <Button type="submit" className="w-full h-10 rounded-lg shadow-lg bg-gradient-to-r from-emerald-500 to-cyan-400 hover:from-emerald-600 hover:to-cyan-500 transition-all duration-300 font-semibold" disabled={loading}>
