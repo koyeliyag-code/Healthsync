@@ -8,6 +8,7 @@ import NotificationCenter from "./NotificationCenter"
 import type { Notification } from "./NotificationCenter"
 import { useSocket } from "@/lib/useSocket"
 import { useAuth } from "@/lib/auth"
+import DarkVeil from "../reactBit"
 
 export default function DashboardLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(true)
@@ -15,7 +16,32 @@ export default function DashboardLayout() {
   const [toastNotifications, setToastNotifications] = useState<Notification[]>([]) // Auto-closing toasts
   const { socket, isConnected } = useSocket()
   const { authFetch } = useAuth()
+  const [isDark, setIsDark] = useState<boolean>(false);
+  useEffect(() => {
+    const checkTheme = () => {
+      const isDarkMode = document.documentElement.classList.contains('dark');
+      setIsDark(isDarkMode);
+    };
 
+    // Check initial theme
+    checkTheme();
+
+    // Watch for theme changes using MutationObserver
+    const observer = new MutationObserver((mutations) => {
+      mutations.forEach((mutation) => {
+        if (mutation.attributeName === 'class') {
+          checkTheme();
+        }
+      });
+    });
+
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['class']
+    });
+
+    return () => observer.disconnect();
+  }, []);
   // Listen for real-time patient assignment notifications
   useEffect(() => {
     if (!socket) return
@@ -186,6 +212,9 @@ export default function DashboardLayout() {
   return (
     <div className={`flex min-h-screen bg-linear-to-br from-background via-background to-muted/20 relative`}>
       {/* Background Pattern */}
+      {isDark && (
+                  <DarkVeil opacity={40} hueShift={15} noiseIntensity={0} scanlineIntensity={0.01} speed={1} warpAmount={0.015} />
+     )} 
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_80%,rgba(14,165,233,0.02),transparent_50%),radial-gradient(circle_at_80%_20%,rgba(16,185,129,0.02),transparent_50%)] dark:bg-[radial-gradient(circle_at_20%_80%,rgba(14,165,233,0.05),transparent_50%),radial-gradient(circle_at_80%_20%,rgba(16,185,129,0.05),transparent_50%)]" />
       <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(14,165,233,0.005)_1px,transparent_1px),linear-gradient(rgba(14,165,233,0.005)_1px,transparent_1px)] bg-[size:6rem_6rem] dark:bg-[linear-gradient(90deg,rgba(14,165,233,0.01)_1px,transparent_1px),linear-gradient(rgba(14,165,233,0.01)_1px,transparent_1px)]" />
       

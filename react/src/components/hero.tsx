@@ -1,7 +1,7 @@
 "use client"
 
 import { Button } from "./ui/button"
-import { Users, MessageCircle, BookOpen, Shield, Search } from "lucide-react"
+import { Users, MessageCircle, BookOpen, Shield, Search, ChevronUp, ChevronDown } from "lucide-react"
 import { motion } from "framer-motion"
 
 import { useRef, useState, useEffect } from "react"
@@ -120,6 +120,17 @@ export function Hero() {
   }, [filtered.length])
 
   const listboxId = 'icd-listbox'
+
+  const [scrollStates, setScrollStates] = useState<Record<string, { canScrollUp: boolean; canScrollDown: boolean }>>({})
+  const scrollRefs = useRef<Record<string, HTMLDivElement | null>>({})
+
+  const handleScroll = (key: string) => {
+    const el = scrollRefs.current[key]
+    if (!el) return
+    const canScrollUp = el.scrollTop > 5
+    const canScrollDown = el.scrollTop < el.scrollHeight - el.clientHeight - 5
+    setScrollStates(prev => ({ ...prev, [key]: { canScrollUp, canScrollDown } }))
+  }
 
   const onInputKeyDown = (e: any) => {
     if (filtered.length === 0) return
@@ -344,6 +355,7 @@ export function Hero() {
                   {/* Terminal Content */}
                   <div className="p-6 space-y-6">
                     {/* Search Interface */}
+                    
                     <div className="space-y-4">
                       <div className="flex items-center gap-2 text-emerald-400 font-mono text-sm">
                         <span>healthcare@terminal:~$</span>
@@ -375,10 +387,10 @@ export function Hero() {
                           </motion.div>
                         )}
                       </div>
-
+                      
                       {/* Search Results */}
                       {filtered.length > 0 && (
-                        <motion.div 
+                        <motion.div
                           className="space-y-2 max-h-64 overflow-y-auto"
                           initial={{ opacity: 0, height: 0 }}
                           animate={{ opacity: 1, height: "auto" }}
@@ -388,14 +400,23 @@ export function Hero() {
                             Found {filtered.length} matches:
                           </div>
                           {filtered.slice(0, 5).map((d, idx) => (
-                            <motion.button
-                              key={d.id}
-                              onClick={() => {
-                                setSelected(d)
-                                
-                                setHighlightedIndex(-1)
-                                setQuery('')
+                            <div>
+                            {scrollStates[`diagnosis-${d.id}`]?.canScrollUp && (
+                            <div className="absolute top-0 left-0 right-0 h-8 bg-linear-to-b from-card to-transparent z-10 flex items-start justify-center pointer-events-none">
+                              <ChevronUp className="w-5 h-5 text-primary" />
+                              </div>
+                            )}
+                            <motion.div
+                            key={d.id}
+                            onClick={() => {
+                              setSelected(d)
+                              
+                              setHighlightedIndex(-1)
+                              setQuery('')
                               }}
+                              ref={(el) => { scrollRefs.current[`diagnosis-${d.id}`] = el }}
+                              style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+                              onScroll={() => handleScroll(`diagnosis-${d.id}`)}
                               className={`w-full text-left p-3 rounded-lg transition-all ${
                                 highlightedIndex === idx 
                                   ? 'bg-emerald-400/10 border-emerald-400/30' 
@@ -409,7 +430,13 @@ export function Hero() {
                             >
                               <div className="text-sm font-medium text-slate-100 dark:text-slate-200">{d.title}</div>
                               <div className="text-xs text-emerald-400 font-mono mt-1">ICD-11: {d.icd}</div>
-                            </motion.button>
+                            </motion.div>
+                            {scrollStates[`diagnosis-${d.id}`]?.canScrollDown && (
+                              <div className="absolute bottom-0 left-0 right-0 h-8 bg-linear-to-t from-card to-transparent z-10 flex items-end justify-center pointer-events-none">
+                                <ChevronDown className="w-5 h-5 text-primary" />
+                              </div>
+                            )}
+                            </div>
                           ))}
                         </motion.div>
                       )}
@@ -427,6 +454,7 @@ export function Hero() {
                         </div>
                       )}
                     </div>
+                    
 
                     {/* Selected Diagnosis Display */}
                     <div className="bg-slate-800/30 dark:bg-slate-900/30 rounded-lg p-4 border border-slate-600/30 dark:border-slate-700/30">

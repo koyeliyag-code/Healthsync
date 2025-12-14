@@ -87,6 +87,7 @@ type Props = {
   scanlineFrequency?: number;
   warpAmount?: number;
   resolutionScale?: number;
+  opacity?: number;
 };
 
 export default function DarkVeil({
@@ -96,7 +97,8 @@ export default function DarkVeil({
   speed = 0.5,
   scanlineFrequency = 0,
   warpAmount = 0,
-  resolutionScale = 1
+  resolutionScale = 1,
+  opacity = 100
 }: Props) {
   const ref = useRef<HTMLCanvasElement>(null);
   const [isDark, setIsDark] = useState<boolean>(false);
@@ -202,7 +204,7 @@ export default function DarkVeil({
     <canvas 
       ref={ref} 
       className={`fixed top-16 min-w-screen min-h-screen block transition-opacity duration-500 ${
-        isDark ? 'opacity-100' : 'opacity-60'
+        isDark ? `opacity-${opacity}` : 'opacity-60'
       }`} 
       style={{
         mixBlendMode: isDark ? 'normal' : 'multiply'
