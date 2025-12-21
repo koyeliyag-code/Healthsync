@@ -38,12 +38,6 @@
   - Recent patients and diagnosis tracking
   - Doctor availability monitoring
 
-- **Modern User Interface**
-  - Responsive design with Tailwind CSS v4
-  - Dark mode support with animated transitions
-  - Smooth animations powered by Framer Motion & GSAP
-  - Radix UI components for accessibility
-
 
 ## 🏗️ Architecture
 
