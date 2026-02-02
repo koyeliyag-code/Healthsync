@@ -14,6 +14,21 @@ Environment variables
 - `MONGODB_DB` — (optional) database name (default: healthsync).
 - `JWT_SECRET` — secret used to sign JWT tokens (default is `change-this-secret` — change for production).
 - `PORT` — port for the server (default 3000).
+- `GROQ_API_KEY` — API key for Groq AI chatbot integration (required for patient chat feature).
+- `SERPAPI_KEY` — (optional) API key for SerpAPI research paper integration.
+- `ENABLE_SOCKETS` — set to 'true' to enable Socket.IO for real-time notifications (default: false).
+- `FRONTEND_URL` — frontend URL for CORS configuration (default: http://localhost:3000).
+
+Groq AI Setup
+
+To enable the AI chatbot feature:
+
+1. Get a Groq API key from https://console.groq.com
+2. Create a `.env` file in the backend directory (it's gitignored)
+3. Add your API key: `GROQ_API_KEY=your_key_here`
+4. The chatbot will now be available at `/api/groq/patient-chat`
+
+The chatbot includes built-in safety constraints and cannot diagnose, prescribe, or provide emergency advice.
 
 Run locally
 
